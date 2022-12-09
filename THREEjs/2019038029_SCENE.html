@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>2019038029 이찬 - 시골 기차역</title>
+    <script src="three.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #blocker {
+				position: absolute;
+				width: 100%;
+				height: 100%;
+				background-color: rgba(255, 255, 255, 0.2);
+			}
+
+			#instructions {
+				width: 100%;
+				height: 100%;
+
+				display: flex;
+				flex-direction: column;
+				justify-content: center;
+				align-items: center;
+
+				text-align: center;
+				font-size: 14px;
+				cursor: pointer;
+			}
+    </style>
+</head>
+
+<body>
+    <div id="webgl-output"></div>
+    <div id="stats-output"></div>
+    <script src="./dat.gui.js"></script> 
+    <script src="./Stats.js"></script>
+    <script src="./OrbitControls.js"></script> 
+    <script src="js/FBXLoader.js"></script>
+    <script src="js/libs/fflate.min.js"></script>
+    <script src="./PointerLockControls.js"></script>
+    <div id="blocker">
+        <div id="instructions">
+            <p style="font-size:60px; font-weight:1000;">
+                화면을 마우스로 클릭해 시작하세요.
+            </p>
+            <p style="font-size:40px; font-weight:700;">
+                
+                모델링 전경 감상 : 오른쪽 Shift<br/>
+                gui조작을 하고싶다면<br/>
+                ESC를 누르고 왼쪽 위의 gui 컨트롤을 하십시오.<br/><br/>
+                
+                모델링 직접 이동해보기: ENTER <br/>
+                Move: WASD<br/>
+                Jump: SPACE<br/>
+                Look: MOUSE<br/>
+                
+            </p>
+        </div>
+    </div>
+
+
+
+    <script>
+        function init() {
+
+            
+            var step = 0;
+            var scene;
+            var camera;
+            var renderer;
+            const gui = new dat.GUI();
+
+
+
+            // create a scene, that will hold all our elements such as objects, cameras and lights.
+            var scene = new THREE.Scene();
+
+
+            // create a render and set the size 기본 설정
+            renderer = new THREE.WebGLRenderer();
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap //성능 훌륭한 shadow map
+            renderer.setClearColor(new THREE.Color(0x000000));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+
+
+
+            // 움직이며 조작할 카메라
+            camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            // position and point the camera to the center 카메라 위치
+            camera.lookAt(scene.position);
+            camera.position.set(30, 30,0 );
+
+            const controlss = new THREE.OrbitControls(camera, renderer.domElement);
+            controlss.update();
+            var presentcamera = 1;
+
+
+
+            // camera 2 멀리서 움직여볼 카메라
+            const camera2 = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 1000 );
+            camera2.position.set(120,100,120);
+            camera2.lookAt(scene.position);
+            scene.add( camera2 );
+            
+            //카메라 2 화면 마우스로 회전시키기
+            const controlss2 = new THREE.OrbitControls(camera2, renderer.domElement);
+            controlss2.update();
+
+            var controls = new function () {
+            this.PosX = 120;
+            this.PosY = 100;
+            this.PosZ = 120;
+            };
+
+            guiCA=gui.addFolder('전경 모드 카메라 위치 변경');
+
+            guiCA.add(controls, 'PosX' , -120, 120);
+            guiCA.add(controls, 'PosY' , 10, 100);
+            guiCA.add(controls, 'PosZ' , -120, 120);
+
+            
+
+            // show axes in the screen 표시선 표시
+            var axes = new THREE.AxesHelper(1000);
+            //scene.add(axes);
+
+
+            // create a cube // 초록색 프레임
+            var excube = new THREE.BoxGeometry(100, 100, 100);
+            var excubeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00FF00,
+                wireframe: true
+            });
+            var cube = new THREE.Mesh(excube, excubeMaterial);
+            //scene.add(cube);  
+
+
+
+            //기본 물체보이게 해주는 빛
+            const light = new THREE.AmbientLight( 0x404040 ); // soft white light
+            scene.add( light );
+            light.intensity=0.3;
+            // gui.add(light, "visible").name("light");
+
+            
+            
+            //그림자 만들 태양역할 라이트  //다이렉셔널 라이트 그림자생성이 안되서 차선책으로 선택
+            const sunLight = new THREE.SpotLight( 0xffffff );
+            sunLight.position.set( 250, 750, 250 );
+            sunLight.position.set( 40, 210, 200 );
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
+            sunLight.shadow.camera.near = 1;
+            sunLight.shadow.camera.far = 1000;
+            sunLight.shadow.camera.fov = 30;
+            sunLight.angle=Math.PI/8.
+            sunLight.intensity = 0.5;
+
+            scene.add( sunLight );
+            guiDN=gui.addFolder('야간풍경 check123 모두 체크 해제시 적용');
+            guiDN.add(sunLight, "visible").name("check1");
+            
+
+
+            // 배경처리용1- 배경에 빛주기
+            const spotLight1 = new THREE.SpotLight( 0xffffff, 0.5 );
+            spotLight1.position.set( 0, 100, 0 );
+            spotLight1.target.position.set(100, 100, 100 );
+            spotLight1.target.updateMatrixWorld();
+            spotLight1.intensity=0.5;
+            spotLight1.angle=Math.PI/2.
+            scene.add( spotLight1 );
+            guiDN.add(spotLight1, "visible").name("check2")
+
+
+            // 배경처리용2 - 배경에 빛주기
+            const spotLight2 = new THREE.SpotLight( 0xffffff, 0.5 );
+            spotLight2.position.set( 0, 100, 0 );
+            spotLight2.target.position.set(-100, 100, -100 );
+            spotLight2.target.updateMatrixWorld();
+            spotLight2.intensity=0.5;
+            spotLight2.angle=Math.PI/2.
+            scene.add( spotLight2 );
+            guiDN.add(spotLight2, "visible").name("check3")
+            
+
+
+            // 겉 테두리 배경 만들기
+            const skymatArray=[];
+            const skytextureft = new THREE.TextureLoader().load("./pic/meadow_ft.jpg")
+            const skytexturebk = new THREE.TextureLoader().load("./pic/meadow_bk.jpg")
+            const skytextureup = new THREE.TextureLoader().load("./pic/meadow_up.jpg")
+            const skytexturedn = new THREE.TextureLoader().load("./pic/meadow_dn.jpg")
+            const skytexturert = new THREE.TextureLoader().load("./pic/meadow_rt.jpg")
+            const skytexturelf = new THREE.TextureLoader().load("./pic/meadow_lf.jpg")
+            
+            skymatArray.push(
+                new THREE.MeshStandardMaterial({
+                    map: skytextureft,
+                })
+            );
+            skymatArray.push(
+                new THREE.MeshStandardMaterial({
+                    map: skytexturebk,
+                })
+            );
+            skymatArray.push(
+                new THREE.MeshStandardMaterial({
+                    map: skytextureup,
+                })
+            );
+            skymatArray.push(
+                new THREE.MeshStandardMaterial({
+                    map: skytexturedn,
+                })
+            );
+            skymatArray.push(
+                new THREE.MeshStandardMaterial({
+                    map: skytexturert,
+                })
+            );
+            skymatArray.push(
+                new THREE.MeshStandardMaterial({
+                    map: skytexturelf,
+                })
+            );
+
+            for (let i=0; i<6; i++){
+                skymatArray[i].side = THREE.BackSide
+            }
+            
+            const skyGeo= new THREE.BoxGeometry(800,800,800);
+            const sky = new THREE.Mesh(skyGeo,skymatArray);
+            scene.add(sky);
+            sky.receiveShadow=false;
+            // sky.position.set(0,100,0);
+
+
+            //로더
+            var loader = new THREE.TextureLoader();
+
+
+            //바닥
+            const pgeometry = new THREE.PlaneGeometry(150, 150);
+            const pmaterial = new THREE.MeshStandardMaterial({ map: loader.load("./pic/green.jpg") });
+            const plane = new THREE.Mesh(pgeometry, pmaterial);
+            plane.rotation.x = 1.5 * Math.PI
+            plane.position.set(0, 0, 0)
+            plane.receiveShadow = true;
+
+            //흙길
+            const lgeometry = new THREE.PlaneGeometry(50, 15);
+            const lmaterial = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/dirtroad.jpg") });
+
+            const road1 = new THREE.Mesh(lgeometry, lmaterial);
+            road1.receiveShadow = true;
+            road1.rotation.x = 1.5 * Math.PI
+            road1.position.set(13, 0.25, 0)
+
+
+            const road2 = new THREE.Mesh(lgeometry, lmaterial);
+            road2.receiveShadow = true;
+            road2.rotation.x = 1.5 * Math.PI
+            road2.position.set(-50, 0.25, 0)
+
+
+
+
+            //나무1
+            var tree_load= new THREE.FBXLoader().load('./opensource/Tree/Tree.fbx',function(tree_o){
+                tree_o.position.set(-60,0,-30);
+                tree_o.receiveShadow = true;
+                tree_o.castShadow = true;
+                tree_o.scale.multiplyScalar(10.0);   
+                scene.add(tree_o);
+                })
+
+                //나무2
+            var tree_load= new THREE.FBXLoader().load('./opensource/Tree/Tree.fbx',function(tree_o2){
+                tree_o2.position.set(-60,0,+30);
+                tree_o2.receiveShadow = true;
+                tree_o2.castShadow = true;
+                tree_o2.scale.multiplyScalar(10.0);
+                tree_o2.rotation.y =0.8 * Math.PI
+                scene.add(tree_o2);
+                })
+
+            // 안쪽 벤치4개
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o){
+            bench_o.position.set(30,5,14);
+            bench_o.receiveShadow = true;
+            bench_o.castShadow = true;
+            bench_o.scale.multiplyScalar(0.20);
+            scene.add(bench_o);
+            })
+
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o2){
+            bench_o2.position.set(30,5,-20);
+            bench_o2.receiveShadow = true;
+            bench_o2.castShadow = true;
+            bench_o2.scale.multiplyScalar(0.20);
+            scene.add(bench_o2);
+            })
+
+
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o3){
+            bench_o3.position.set(30,5,50);
+            bench_o3.receiveShadow = true;
+            bench_o3.castShadow = true;
+            
+            bench_o3.scale.multiplyScalar(0.20);
+            scene.add(bench_o3);
+            })
+
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o4){
+            bench_o4.position.set(30,5,-56);
+            bench_o4.receiveShadow = true;
+            bench_o4.castShadow = true;
+            bench_o4.scale.multiplyScalar(0.20);
+            scene.add(bench_o4);
+            })
+
+
+            // 바깥쪽 벤치 4개
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o5){
+                bench_o5.position.set(81,5,20);
+                bench_o5.receiveShadow = true;
+                bench_o5.castShadow = true;
+                bench_o5.rotation.y =1 * Math.PI
+                bench_o5.scale.multiplyScalar(0.20);
+            scene.add(bench_o5);
+            })
+
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o6){
+                bench_o6.position.set(81,5,-14);
+                bench_o6.receiveShadow = true;
+                bench_o6.castShadow = true;
+                bench_o6.rotation.y =1 * Math.PI
+                bench_o6.scale.multiplyScalar(0.20);
+            scene.add(bench_o6);
+            })
+
+
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o7){
+                bench_o7.position.set(81,5,56);
+                bench_o7.receiveShadow = true;
+                bench_o7.castShadow = true;
+                bench_o7.rotation.y =1 * Math.PI
+                bench_o7.scale.multiplyScalar(0.20);
+            scene.add(bench_o7);
+            })
+
+            var bench_load= new THREE.FBXLoader().load('./opensource/bench/kiti22.fbx',function(bench_o8){
+                bench_o8.position.set(81,5,-50);
+                bench_o8.receiveShadow = true;
+                bench_o8.castShadow = true;
+                bench_o8.rotation.y =1 * Math.PI
+                bench_o8.scale.multiplyScalar(0.20);
+            scene.add(bench_o8);
+            })
+
+
+
+            /// 바닥 그룹 만들기/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            const backgroup = new THREE.Group();
+            backgroup.add(plane);
+            backgroup.add(road1);
+            backgroup.add(road2);
+            backgroup.receiveShadow = true;
+            scene.add(backgroup);
+
+
+            //기차길 바닥 만들기
+
+            //바닥기본형
+            const mbadak = new THREE.BoxGeometry(20, 1, 20);
+            const badakmaterials = new THREE.MeshStandardMaterial (/*{color: 0xfffff},*/{ map: loader.load("./pic/doll.jpg") });
+
+
+            //바닥들 객체
+            const badak1 = new THREE.Mesh(mbadak, badakmaterials);
+            badak1.position.x = 55;
+            badak1.position.z = 65;
+            badak1.receiveShadow = true;
+
+
+            const badak2 = new THREE.Mesh(mbadak, badakmaterials);
+            badak2.position.x = 55;
+            badak2.position.z = 45;
+            badak2.receiveShadow = true;
+
+            const badak3 = new THREE.Mesh(mbadak, badakmaterials);
+            badak3.position.x = 55;
+            badak3.position.z = 25;
+            badak3.receiveShadow = true;
+
+            const badak4 = new THREE.Mesh(mbadak, badakmaterials);
+            badak4.position.x = 55;
+            badak4.position.z = 5;
+            badak4.receiveShadow = true;
+
+            const badak5 = new THREE.Mesh(mbadak, badakmaterials);
+            badak5.position.x = 55;
+            badak5.position.z = -15;
+            badak5.receiveShadow = true;
+
+            const badak6 = new THREE.Mesh(mbadak, badakmaterials);
+            badak6.position.x = 55;
+            badak6.position.z = -35;
+            badak6.receiveShadow = true;
+
+            const badak7 = new THREE.Mesh(mbadak, badakmaterials);
+            badak7.position.x = 55;
+            badak7.position.z = -55;
+            badak7.receiveShadow = true;
+
+            const badak8 = new THREE.Mesh(mbadak, badakmaterials);
+            badak8.position.x = 55;
+            badak8.position.z = -65;
+            badak8.position.y = -0.1;
+
+            badak8.receiveShadow = true;
+
+
+
+            //철도 레일 만들기
+            const cgeometry = new THREE.BoxGeometry(1, 1, 150);
+            const cmaterials = new THREE.MeshStandardMaterial ({ color: 0x703838 });
+
+
+            const chuldo1 = new THREE.Mesh(cgeometry, cmaterials);
+            chuldo1.position.x = 47.5;
+            chuldo1.position.y = 1;
+            chuldo1.receiveShadow = true;
+            
+            const chuldo2 = new THREE.Mesh(cgeometry, cmaterials);
+            chuldo2.position.x = 52.5;
+            chuldo2.position.y = 1;
+            chuldo2.receiveShadow = true;
+
+            const chuldo3 = new THREE.Mesh(cgeometry, cmaterials);
+            chuldo3.position.x = 57.5;
+            chuldo3.position.y = 1;
+            chuldo3.receiveShadow = true;
+
+            const chuldo4 = new THREE.Mesh(cgeometry, cmaterials);
+            chuldo4.position.x = 62.5;
+            chuldo4.position.y = 1;
+            chuldo4.receiveShadow = true;
+
+
+            //플랫폼 만들기
+            const fgeometry = new THREE.BoxGeometry(10, 3, 150);
+            const fmaterials = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/flatform.jpg") });
+
+
+
+            //플랫폼 1
+            const flatform1 = new THREE.Mesh(fgeometry, fmaterials);
+            flatform1.position.x = 70;
+            flatform1.position.y = 2;
+            flatform1.receiveShadow = true;
+
+            //플랫폼 1확장
+            const flatform1p = new THREE.Mesh(fgeometry, fmaterials);
+            flatform1p.position.x = 30;
+            flatform1p.position.y = 2;
+            flatform1p.receiveShadow = true;
+            flatform1p.rotation.y =-1 * Math.PI
+
+
+            //플랫폼2 
+            const flatform2 = new THREE.Mesh(fgeometry, fmaterials);
+            flatform2.position.x = 40;
+            flatform2.position.y = 2;
+            flatform2.receiveShadow = true;
+            
+            //플랫폼 2확장
+            const flatform2p = new THREE.Mesh(fgeometry, fmaterials);
+            flatform2p.position.x = 80;
+            flatform2p.position.y = 2;
+            flatform2p.receiveShadow = true;
+            flatform2p.rotation.y =-1 * Math.PI
+            
+
+            //플랫폼 2연결 계단3
+            const flatform3 = new THREE.Mesh(fgeometry, fmaterials);
+            flatform3.position.x = 27;
+            flatform3.position.y = 1;
+            flatform3.receiveShadow = true;
+
+
+            //플랫폼 2연결 계단4
+            const flatform4 = new THREE.Mesh(fgeometry, fmaterials);
+            flatform4.position.x = 25;
+            flatform4.position.y = 0;
+            flatform4.receiveShadow = true;
+
+            //플랫폼 천장1 만들기 
+            const f1geometry = new THREE.BoxGeometry(22, 1, 150);
+            const f1materials = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/flatform.jpg") });
+
+            const flatformhat = new THREE.Mesh(f1geometry, f1materials);
+            flatformhat.receiveShadow = true;
+            flatformhat.position.set(34,25,0);
+            flatformhat.rotation.z =0.05 * Math.PI
+
+            //플랫폼 천장 라이트 큐브
+            const lg = new THREE.BoxGeometry( 2, 0.5, 10 );
+            const lm = new THREE.MeshStandardMaterial( {map: loader.load("./pic/light.jpg")} );
+            
+
+            //플랫폼 천장 라이트
+            const flatformlight1 = new THREE.PointLight( 0xffffff, 1, 30 );
+            flatformlight1.position.set(34, 20, 0);
+            
+            const lcube1 = new THREE.Mesh( lg, lm );
+            lcube1.position.set(34, 24, 0);
+            
+
+            const flatformlight2 = new THREE.PointLight( 0xffffff, 1, 30 );
+            flatformlight2.position.set(34, 20, -50);
+            
+            const lcube2 = new THREE.Mesh(lg, lm );
+            lcube2.position.set(34, 24, -50);
+            
+
+            const flatformlight3 = new THREE.PointLight( 0xffffff, 1, 30 );
+            flatformlight3.position.set(34, 20, 50);
+            
+            const lcube3 = new THREE.Mesh( lg, lm );
+            lcube3.position.set(34, 24, 50);
+            
+
+            //기둥 1,2
+            const gigeometry = new THREE.CylinderGeometry( 3, 3, 25, 32 );
+            const gimaterial = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/orange.jpg") });
+            const cylinder1 = new THREE.Mesh( gigeometry, gimaterial );
+            cylinder1.position.set(34,12.5,35);
+            
+            const cylinder2 = new THREE.Mesh( gigeometry, gimaterial );
+            cylinder2.position.set(34,12.5,-35);
+            
+
+            //플랫폼 천장2 만들기 
+            const flatformhat2 = new THREE.Mesh(f1geometry, f1materials);
+            flatformhat2.receiveShadow = true;
+            flatformhat2.position.set(73,25,0);
+            flatformhat2.rotation.z =-0.05 * Math.PI
+
+            const flatformlight4 = new THREE.PointLight( 0xffffff, 1, 30 );
+            flatformlight4.position.set(75, 20, 0);
+            
+            const lcube4 = new THREE.Mesh( lg, lm );
+            lcube4.position.set(75, 24, 0);
+            
+
+            const flatformlight5 = new THREE.PointLight( 0xffffff, 1, 30 );
+            flatformlight5.position.set(75, 20, -50);
+            
+            const lcube5 = new THREE.Mesh( lg, lm );
+            lcube5.position.set(75, 24, -50);
+            
+
+
+            const flatformlight6 = new THREE.PointLight( 0xffffff, 1, 30 );
+            flatformlight6.position.set(75, 20, 50);
+            
+            const lcube6 = new THREE.Mesh( lg, lm );
+            lcube6.position.set(75, 24, 50);
+            
+            
+
+            //기둥 3,4
+            const cylinder3 = new THREE.Mesh( gigeometry, gimaterial );
+            cylinder3.position.set(75,12,35);
+            
+            const cylinder4 = new THREE.Mesh( gigeometry, gimaterial );
+            cylinder4.position.set(75,12,-35);
+            
+
+            //기찻길 그룹 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            const ralegroup = new THREE.Group();
+            ralegroup.add(badak1);
+            ralegroup.add(badak2);
+            ralegroup.add(badak3);
+            ralegroup.add(badak4);
+            ralegroup.add(badak5);
+            ralegroup.add(badak6);
+            ralegroup.add(badak7);
+            ralegroup.add(badak8);
+            ralegroup.add(chuldo1);
+            ralegroup.add(chuldo2);
+            ralegroup.add(chuldo3);
+            ralegroup.add(chuldo4);
+            ralegroup.add(flatform3);
+            ralegroup.add(flatform2);
+            ralegroup.add(flatform1);
+            ralegroup.add(flatform4);
+            ralegroup.add(flatform1p);
+            ralegroup.add(flatform2p);
+            ralegroup.add(flatformhat);
+            ralegroup.add(cylinder1);
+            ralegroup.add(cylinder2);
+            ralegroup.add(flatformhat2);
+            ralegroup.add(cylinder3);
+            ralegroup.add(cylinder4);
+            ralegroup.add( lcube6 );
+            ralegroup.add(flatformlight6);
+            ralegroup.add( lcube5 );
+            ralegroup.add( lcube4 );
+            ralegroup.add(flatformlight4);
+            ralegroup.add( lcube3 );
+            ralegroup.add(flatformlight3);
+            ralegroup.add( lcube2 );
+            ralegroup.add( lcube1 );
+            ralegroup.add(flatformlight1);
+            ralegroup.add(flatformlight2);
+            ralegroup.add(flatformlight5);
+
+            ralegroup.receiveShadow = true;
+            scene.add(ralegroup);
+
+
+
+            //울타리 만들기
+            const fg = new THREE.BoxGeometry(0.5, 10, 20);
+            const sm = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/fence.jpg") });
+            
+
+            const fence1 = new THREE.Mesh(fg, sm);
+            fence1.position.x = -20;
+            fence1.position.y = 5;
+            fence1.position.z = 65;
+            fence1.castShadow = true;
+            
+
+            const fence2 = new THREE.Mesh(fg, sm);
+            fence2.position.x = -20;
+            fence2.position.y = 5;
+            fence2.position.z = -65;
+            fence2.castShadow = true;
+
+
+            //역입구 만들기
+            const dg = new THREE.BoxGeometry(1, 20, 15);
+            const dm = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/door.jpg") });
+            const door1 = new THREE.Mesh(dg, dm);
+            door1.position.set(- 7.8, 10, 0)
+            door1.castShadow = true;
+
+            const door2 = new THREE.Mesh(dg, dm);
+            door2.position.set(- 32.2, 10, 0)
+            door2.castShadow = true;
+
+            //역창문 만들기
+
+            const fwg = new THREE.BoxGeometry(1, 15, 10);
+            const fwm = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/flatwindow.png") });
+
+            const fwindow1 = new THREE.Mesh(fwg, fwm);
+            fwindow1.position.set(-7.8, 13, 30);
+            const wlight1 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight1.position.set(-5, 13, 30);
+            
+
+            
+            const fwindow2 = new THREE.Mesh(fwg, fwm);
+            fwindow2.position.set(-7.8, 13, 18);
+            const wlight2 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight2.position.set(-5, 13, 18);
+            
+            const fwindow3 = new THREE.Mesh(fwg, fwm);
+            fwindow3.position.set(-7.8, 13, -18);
+            const wlight3 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight3.position.set(-5, 13, -18);
+            
+            
+            const fwindow4 = new THREE.Mesh(fwg, fwm);
+            fwindow4.position.set(-7.8, 13, -30);
+            const wlight4 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight4.position.set(-5, 13, -30);
+            
+
+            const fwindow5 = new THREE.Mesh(fwg, fwm);
+            fwindow5.position.set(-32.2, 13, 30);
+            const wlight5 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight5.position.set(-34, 13, 30);
+            
+            
+            
+            const fwindow6 = new THREE.Mesh(fwg, fwm);
+            fwindow6.position.set(-32.2, 13, 18);
+            const wlight6 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight6.position.set(-34, 13, 18);
+            
+            
+            const fwindow7 = new THREE.Mesh(fwg, fwm);
+            fwindow7.position.set(-32.2, 13, -18);
+            const wlight7 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight7.position.set(-34, 13, -18);
+            
+            
+            const fwindow8 = new THREE.Mesh(fwg, fwm);
+            fwindow8.position.set(-32.2, 13, -30);
+            const wlight8 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight8.position.set(-34, 13, -30);
+            
+            
+
+            const fwindow9 = new THREE.Mesh(fwg, fwm);
+            fwindow9.position.set(-11.3, 13, 51);
+            const wlight9 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight9.position.set(-9, 13, 51);
+            
+            
+
+            const fwindow10 = new THREE.Mesh(fwg, fwm);
+            fwindow10.position.set(-11.3, 13, -51);
+            const wlight10 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight10.position.set(-9, 13, -51);
+            
+            
+
+            const fwindow11 = new THREE.Mesh(fwg, fwm);
+            fwindow11.position.set(-28.7, 13, 51);
+            const wlight11 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight11.position.set(-30, 13, 51);
+            
+            
+
+            const fwindow12 = new THREE.Mesh(fwg, fwm);
+            fwindow12.position.set(-28.7, 13, -51);
+            const wlight12 = new THREE.PointLight( 0xffffff, 1, 20 );
+            wlight12.position.set(-30, 13,-51);
+            
+            
+
+
+            //역만들기
+            const station_geometry = new THREE.BoxGeometry(25, 25, 80);
+            const station_materials = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/brick.jpg") });
+
+            const station1 = new THREE.Mesh(station_geometry, station_materials);
+            station1.castShadow = true;
+            station1.position.x = -20;
+            station1.position.y = 12.5;
+            station1.castShadow = true;
+
+            // 역 불빛1
+            const stationLight1 = new THREE.SpotLight( 0xffffff );
+            stationLight1.position.set(-5, 24, 0 );
+            stationLight1.castShadow = true;
+            stationLight1.shadow.mapSize.width = 1024;
+            stationLight1.shadow.mapSize.height = 1024;
+            stationLight1.shadow.camera.near = 1;
+            stationLight1.shadow.camera.far = 30;
+            stationLight1.shadow.camera.fov = 30;
+            stationLight1.angle=Math.PI/8.
+            stationLight1.penumbra =1
+            stationLight1.intensity = 1;
+            stationLight1.distance = 100;
+            stationLight1.target.position.set(-10, 30, 0 )
+            stationLight1.target.updateMatrixWorld();
+            
+
+
+
+            // 역 불빛2
+            const stationLight2 = new THREE.SpotLight( 0xffffff );
+            stationLight2.position.set(-40, 24, 0 );
+            stationLight2.castShadow = true;
+            stationLight2.shadow.mapSize.width = 1024;
+            stationLight2.shadow.mapSize.height = 1024;
+            stationLight2.shadow.camera.near = 1;
+            stationLight2.shadow.camera.far = 30;
+            stationLight2.shadow.camera.fov = 30;
+            stationLight2.angle=Math.PI/8.
+            stationLight2.penumbra =1
+            stationLight2.intensity = 1;
+            stationLight2.distance = 100;
+            stationLight2.target.position.set(-10, 50, 0 )
+            stationLight2.target.updateMatrixWorld();
+            
+
+
+
+            //기차 기준 왼쪽 위치 튀어나온 건물
+            const station_geometry3 = new THREE.BoxGeometry(18, 25, 25);
+            const station_materials3 = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/brick.jpg") });
+
+            const station3 = new THREE.Mesh(station_geometry3, station_materials3);
+            station3.position.x = -20;
+            station3.position.y = 12.5;
+            station3.position.z = 50;
+            station3.castShadow = true;
+
+            // 기차 기준 오른쪽 위치 튀어나온 건물
+            const station4 = new THREE.Mesh(station_geometry3, station_materials3);
+            station4.position.x = -20;
+            station4.position.y = 12.5;
+            station4.position.z = -50;
+            station4.castShadow = true;
+
+            //지붕
+            const station_geometry2 = new THREE.BoxGeometry(30, 2, 130);
+            const station_materials2 = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/top.jpg") });
+            const station2 = new THREE.Mesh(station_geometry2, station_materials2);
+            station2.position.x = -20;
+            station2.position.y = 25;
+            station2.castShadow = true;
+
+            // 시계탑쪽 건물
+            const station_geometry5 = new THREE.BoxGeometry(10, 20, 10);
+            const station_materials5 = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/brick.jpg") });
+            const station5 = new THREE.Mesh(station_geometry5, station_materials5);
+            station5.position.x = -20;
+            station5.position.y = 28;
+            station5.position.z = 0;
+            station5.castShadow = true;
+
+            // 시계탑쪽 건물
+            const station_geometry6 = new THREE.BoxGeometry(12, 10, 12);
+            const station_materials6 = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/brick.jpg") });
+            const station6 = new THREE.Mesh(station_geometry6, station_materials6);
+            station6.position.x = -20;
+            station6.position.y = 40;
+            station6.position.z = 0;
+            station6.castShadow = true;
+
+            //시계탑 지붕
+            const t1geometry = new THREE.ConeGeometry(9, 5, 10);
+            const t1material = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/top.jpg") });
+            const t1capsule = new THREE.Mesh(t1geometry, t1material);
+            t1capsule.position.x = -20;
+            t1capsule.position.y = 47.5;
+            t1capsule.position.z = 0;
+            t1capsule.castShadow = true;
+
+            //시계
+            const clockgeometry = new THREE.CylinderGeometry(4, 4, 0.5, 32);
+            const clockmaterial = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/clock.jpg") });
+            
+
+            //기차쪽 시계
+            const clock1 = new THREE.Mesh(clockgeometry, clockmaterial);
+            clock1.castShadow = true;
+            clock1.rotation.z = -0.5 * Math.PI
+            clock1.rotation.y = -1 * Math.PI
+            clock1.position.x = -13.5;
+            clock1.position.y = 40;
+            clock1.position.z = 0;
+            clock1.castShadow = true;
+
+            //기차반대쪽 시계
+            const clock2 = new THREE.Mesh(clockgeometry, clockmaterial);
+            clock2.castShadow = true;
+            clock2.rotation.z = -0.5 * Math.PI
+            clock2.position.x = -26.2;
+            clock2.position.y = 40;
+            clock2.position.z = 0;
+            clock2.castShadow = true;
+
+
+
+            // 역 그룹 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            const stationgroup = new THREE.Group();
+            
+            stationgroup.add(station1);
+            stationgroup.add(station2);
+            stationgroup.add(station3);
+            stationgroup.add(station4);
+            stationgroup.add(station5);
+            stationgroup.add(station6);
+            stationgroup.add(t1capsule);
+            stationgroup.add(clock1);
+            stationgroup.add(clock2);
+            stationgroup.add(door2);
+            stationgroup.add(door1);
+            stationgroup.add(fwindow1);
+            stationgroup.add(fwindow2);
+            stationgroup.add(fwindow3);
+            stationgroup.add(fwindow4);
+            stationgroup.add(fwindow5); 
+            stationgroup.add(fwindow6);
+            stationgroup.add(fwindow7);
+            stationgroup.add(fwindow8);
+            stationgroup.add(fwindow9);
+            stationgroup.add(fwindow10);
+            stationgroup.add(fwindow12);
+            stationgroup.add(fwindow11);
+            stationgroup.add(fence2);
+            stationgroup.add(fence1);
+            stationgroup.add(stationLight1);
+            stationgroup.add(stationLight2);
+            stationgroup.add(wlight1);
+            stationgroup.add(wlight2);
+            stationgroup.add(wlight3);
+            stationgroup.add(wlight4);
+            stationgroup.add(wlight5);
+            stationgroup.add(wlight6);
+            stationgroup.add(wlight7);
+            stationgroup.add(wlight8);
+            stationgroup.add(wlight9);
+            stationgroup.add(wlight10);
+            stationgroup.add(wlight11);
+            stationgroup.add(wlight12);
+
+
+            
+            
+            // stationgroup.castShadow = true;
+            scene.add(stationgroup);
+
+
+
+
+            /// 기차 만들기
+            const length = 4, width = 6;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(0, 0);
+            shape.lineTo(0, width);
+            shape.lineTo(length, width);
+            shape.lineTo(length, 0);
+            shape.lineTo(0, 0);
+
+            const extrudeSettings = {
+                steps: 10,
+                depth: 20,
+                bevelEnabled: true,
+                bevelThickness: 1,
+                bevelSize: 3,
+                bevelOffset: -1,
+                bevelSegments: 5
+            };
+            //열차 정의/
+            const train_geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const train_material = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/iron.jpg") });
+
+            ///////열차 1 만들기///////////////////////////////////////////////////
+            const uptrian1 = new THREE.Mesh(train_geometry, train_material);
+
+            uptrian1.castShadow = true;
+
+            uptrian1.position.x = 48;
+            uptrian1.position.y = 5;
+            uptrian1.position.z = -10;
+            uptrian1.castShadow = true;
+
+
+
+            //창문 만들기
+            const chang_geometry = new THREE.BoxGeometry(0.5, 4, 14);
+            const chang_materials = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/window1.png") });
+
+
+            const train_window1l = new THREE.Mesh(chang_geometry, chang_materials);
+
+            train_window1l.position.x = 46;
+            train_window1l.position.y = 8.5;
+            train_window1l.position.z = 0;
+            const tlight1l = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight1l.position.set(43, 8.5, 0);
+            
+
+
+            const train_window1r = new THREE.Mesh(chang_geometry, chang_materials);
+
+            train_window1r.position.x = 54;
+            train_window1r.position.y = 8.5;
+            train_window1r.position.z = 0;
+            const tlight1r = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight1r.position.set(57, 8.5, 0);
+            
+
+
+            //바퀴 만들기 정의
+            const baqigeometry = new THREE.CylinderGeometry(1.5, 1.5, 1, 32);
+            const baqimaterial = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/wheel.jpg") });
+
+
+
+            //바퀴1-1
+            const baqi1_1 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi1_1.castShadow = true;
+            baqi1_1.rotation.z = -0.5 * Math.PI
+            baqi1_1.position.x = 47.5;
+            baqi1_1.position.y = 2.7;
+            baqi1_1.position.z = 5;
+
+
+            //바퀴1-2
+            const baqi1_2 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi1_2.castShadow = true;
+            baqi1_2.rotation.z = -0.5 * Math.PI
+            baqi1_2.position.x = 52.5;
+            baqi1_2.position.y = 2.7;
+            baqi1_2.position.z = 5;
+
+
+            //바퀴1-3
+            const baqi1_3 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi1_3.castShadow = true;
+            baqi1_3.rotation.z = -0.5 * Math.PI
+            baqi1_3.position.x = 47.5;
+            baqi1_3.position.y = 2.7;
+            baqi1_3.position.z = -5;
+
+            //바퀴1-4
+            const baqi1_4 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi1_4.castShadow = true;
+            baqi1_4.rotation.z = -0.5 * Math.PI
+            baqi1_4.position.x = 52.5;
+            baqi1_4.position.y = 2.7;
+            baqi1_4.position.z = -5;
+
+            const traingroup1 = new THREE.Group();
+            traingroup1.add(uptrian1);
+            traingroup1.add(train_window1l);
+            traingroup1.add(train_window1r);
+            traingroup1.add(baqi1_1);
+            traingroup1.add(baqi1_2);
+            traingroup1.add(baqi1_3);
+            traingroup1.add(baqi1_4);
+            traingroup1.add(tlight1r);
+            traingroup1.add(tlight1l);
+
+            traingroup1.castShadow = true;
+
+            //////////////////// 2번째 기차///////////////////////////////////
+            const uptrian2 = new THREE.Mesh(train_geometry, train_material);
+            uptrian2.position.x = 48;
+            uptrian2.position.y = 5;
+            uptrian2.position.z = -32;
+            uptrian2.castShadow = true;
+
+            const train_window2l = new THREE.Mesh(chang_geometry, chang_materials);
+            train_window2l.position.x = 46;
+            train_window2l.position.y = 8.5;
+            train_window2l.position.z = -22;
+            const tlight2l = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight2l.position.set(43, 8.5, -22);
+    
+            
+
+            const train_window2r = new THREE.Mesh(chang_geometry, chang_materials);
+            train_window2r.position.x = 54;
+            train_window2r.position.y = 8.5;
+            train_window2r.position.z = -22;
+            const tlight2r = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight2r.position.set(57, 8.5, -22);
+            
+
+            //바퀴2-1
+            const baqi2_1 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi2_1.castShadow = true;
+            baqi2_1.rotation.z = -0.5 * Math.PI
+            baqi2_1.position.x = 47.5;
+            baqi2_1.position.y = 2.7;
+            baqi2_1.position.z = -17;
+
+            //바퀴2-2
+            const baqi2_2 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi2_2.castShadow = true;
+            baqi2_2.rotation.z = -0.5 * Math.PI
+            baqi2_2.position.x = 52.5;
+            baqi2_2.position.y = 2.7;
+            baqi2_2.position.z = -17;
+
+            //바퀴2-3
+            const baqi2_3 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi2_3.castShadow = true;
+            baqi2_3.rotation.z = -0.5 * Math.PI
+            baqi2_3.position.x = 47.5;
+            baqi2_3.position.y = 2.7;
+            baqi2_3.position.z = -27;
+
+            //바퀴2-4
+            const baqi2_4 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi2_4.castShadow = true;
+            baqi2_4.rotation.z = -0.5 * Math.PI
+            baqi2_4.position.x = 52.5;
+            baqi2_4.position.y = 2.7;
+            baqi2_4.position.z = -27;
+
+            const traingroup2 = new THREE.Group();
+            traingroup2.add(uptrian2);
+            traingroup2.add(train_window2l);
+            traingroup2.add(train_window2r);
+            traingroup2.add(baqi2_1);
+            traingroup2.add(baqi2_2);
+            traingroup2.add(baqi2_3);
+            traingroup2.add(baqi2_4);
+            traingroup2.add(tlight2r);
+            traingroup2.add(tlight2l);
+
+
+            //////////////////// 3번째 기차 //////////////////////////////////////////////////
+            const uptrian3 = new THREE.Mesh(train_geometry, train_material);
+            uptrian3.position.x = 48;
+            uptrian3.position.y = 5;
+            uptrian3.position.z = -54;
+            uptrian3.castShadow = true;
+
+
+            const train_window3l = new THREE.Mesh(chang_geometry, chang_materials);
+            train_window3l.position.x = 46;
+            train_window3l.position.y = 8.5;
+            train_window3l.position.z = -44;
+            const tlight3l = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight3l.position.set(43, 8.5, -44);
+            
+
+
+            const train_window3r = new THREE.Mesh(chang_geometry, chang_materials);
+            train_window3r.position.x = 54;
+            train_window3r.position.y = 8.5;
+            train_window3r.position.z = -44;
+            const tlight3r = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight3r.position.set(57, 8.5, -44);
+            
+
+            //바퀴3-1
+            const baqi3_1 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi3_1.castShadow = true;
+            baqi3_1.rotation.z = -0.5 * Math.PI
+            baqi3_1.position.x = 47.5;
+            baqi3_1.position.y = 2.7;
+            baqi3_1.position.z = -39;
+
+            //바퀴3-2
+            const baqi3_2 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi3_2.castShadow = true;
+            baqi3_2.rotation.z = -0.5 * Math.PI
+            baqi3_2.position.x = 52.5;
+            baqi3_2.position.y = 2.7;
+            baqi3_2.position.z = -39;
+
+            //바퀴3-3
+            const baqi3_3 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi3_3.castShadow = true;
+            baqi3_3.rotation.z = -0.5 * Math.PI
+            baqi3_3.position.x = 47.5;
+            baqi3_3.position.y = 2.7;
+            baqi3_3.position.z = -49;
+
+            //바퀴3-4
+            const baqi3_4 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi3_4.castShadow = true;
+            baqi3_4.rotation.z = -0.5 * Math.PI
+            baqi3_4.position.x = 52.5;
+            baqi3_4.position.y = 2.7;
+            baqi3_4.position.z = -49;
+
+            const traingroup3 = new THREE.Group();
+            traingroup3.add(uptrian3);
+            traingroup3.add(train_window3l);
+            traingroup3.add(train_window3r);
+            traingroup3.add(baqi3_1);
+            traingroup3.add(baqi3_2);
+            traingroup3.add(baqi3_3);
+            traingroup3.add(baqi3_4);
+            traingroup3.add(tlight3r);
+            traingroup3.add(tlight3l);
+
+
+            //////////////////// 4번째 기차 //////////////////////////////////////////////////
+            const uptrian4 = new THREE.Mesh(train_geometry, train_material);
+            uptrian4.position.x = 48;
+            uptrian4.position.y = 5;
+            uptrian4.position.z = -76;
+            uptrian4.castShadow = true;
+
+
+            const train_window4l = new THREE.Mesh(chang_geometry, chang_materials);
+            train_window4l.position.x = 46;
+            train_window4l.position.y = 8.5;
+            train_window4l.position.z = -66;
+            const tlight4l = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight4l.position.set(43, 8.5, -66);
+            
+
+
+            const train_window4r = new THREE.Mesh(chang_geometry, chang_materials);
+            train_window4r.position.x = 54;
+            train_window4r.position.y = 8.5;
+            train_window4r.position.z = -66;
+            const tlight4r = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight4r.position.set(57, 8.5, -66);
+
+            const tlight4t = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlight4t.position.set(50, 5, -80);
+            
+            
+
+            //바퀴4-1
+            const baqi4_1 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi4_1.castShadow = true;
+            baqi4_1.rotation.z = -0.5 * Math.PI
+            baqi4_1.position.x = 47.5;
+            baqi4_1.position.y = 2.7;
+            baqi4_1.position.z = -62;
+
+
+            //바퀴4-2
+            const baqi4_2 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi4_2.castShadow = true;
+            baqi4_2.rotation.z = -0.5 * Math.PI
+            baqi4_2.position.x = 52.5;
+            baqi4_2.position.y = 2.7;
+            baqi4_2.position.z = -62;
+
+
+            //바퀴4-3
+            const baqi4_3 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi4_3.castShadow = true;
+            baqi4_3.rotation.z = -0.5 * Math.PI
+            baqi4_3.position.x = 47.5;
+            baqi4_3.position.y = 2.7;
+            baqi4_3.position.z = -72;
+
+
+            //바퀴4-4
+            const baqi4_4 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqi4_4.castShadow = true;
+            baqi4_4.rotation.z = -0.5 * Math.PI
+            baqi4_4.position.x = 52.5;
+            baqi4_4.position.y = 2.7;
+            baqi4_4.position.z = -72;
+
+            const traingroup4 = new THREE.Group();
+            traingroup4.add(uptrian4);
+            traingroup4.add(train_window4l);
+            traingroup4.add(train_window4r);
+            traingroup4.add(baqi4_1);
+            traingroup4.add(baqi4_2);
+            traingroup4.add(baqi4_3);
+            traingroup4.add(baqi4_4);
+            traingroup4.add(tlight4r);
+            traingroup4.add(tlight4l);
+            traingroup4.add(tlight4t);
+            
+
+
+            //////////////////// -1번째 기차 //////////////////////////////////////////////////
+            const uptrianm1 = new THREE.Mesh(train_geometry, train_material);
+
+            uptrianm1.position.x = 48;
+            uptrianm1.position.y = 5;
+            uptrianm1.position.z = 12;
+            uptrianm1.castShadow = true;
+
+
+            const train_windowm1l = new THREE.Mesh(chang_geometry, chang_materials);
+
+            train_windowm1l.position.x = 46;
+            train_windowm1l.position.y = 8.5;
+            train_windowm1l.position.z = 22;
+            const tlightm1l = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlightm1l.position.set(43, 8.5, 22);
+            
+
+
+
+            const train_windowm1r = new THREE.Mesh(chang_geometry, chang_materials);
+
+            train_windowm1r.position.x = 54;
+            train_windowm1r.position.y = 8.5;
+            train_windowm1r.position.z = 22;
+            const tlightm1r = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlightm1r.position.set(57, 8.5, 22);
+            
+
+            //바퀴m1-1
+            const baqim1_1 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqim1_1.castShadow = true;
+            baqim1_1.rotation.z = -0.5 * Math.PI
+            baqim1_1.position.x = 47.5;
+            baqim1_1.position.y = 2.7;
+            baqim1_1.position.z = 27;
+
+
+            //바퀴m1-2
+            const baqim1_2 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqim1_2.castShadow = true;
+            baqim1_2.rotation.z = -0.5 * Math.PI
+            baqim1_2.position.x = 52.5;
+            baqim1_2.position.y = 2.7;
+            baqim1_2.position.z = 27;
+
+
+            //바퀴m1-3
+            const baqim1_3 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqim1_3.castShadow = true;
+            baqim1_3.rotation.z = -0.5 * Math.PI
+            baqim1_3.position.x = 47.5;
+            baqim1_3.position.y = 2.7;
+            baqim1_3.position.z = 17;
+
+
+            //바퀴m1-4
+            const baqim1_4 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqim1_4.castShadow = true;
+            baqim1_4.rotation.z = -0.5 * Math.PI
+            baqim1_4.position.x = 52.5;
+            baqim1_4.position.y = 2.7;
+            baqim1_4.position.z = 17;
+
+            const traingroupm1 = new THREE.Group();
+            traingroupm1.add(uptrianm1);
+            traingroupm1.add(train_windowm1l);
+            traingroupm1.add(train_windowm1r);
+            traingroupm1.add(baqim1_1);
+            traingroupm1.add(baqim1_2);
+            traingroupm1.add(baqim1_3);
+            traingroupm1.add(baqim1_4);
+            traingroupm1.add(tlightm1l);
+            traingroupm1.add(tlightm1r);
+            
+
+            
+
+
+            //////////////////// 머리부분 기차 //////////////////////////////////////////////////
+            const uptrianh = new THREE.Mesh(train_geometry, train_material);
+
+            uptrianh.position.x = 48;
+            uptrianh.position.y = 5;
+            uptrianh.position.z = 34;
+            uptrianh.castShadow = true;
+
+
+            const train_windowhl = new THREE.Mesh(chang_geometry, chang_materials);
+
+            train_windowhl.position.x = 46;
+            train_windowhl.position.y = 8.5;
+            train_windowhl.position.z = 44;
+            const tlighthl = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlighthl.position.set(43, 8.5, 44);
+            
+
+
+
+            const train_windowhr = new THREE.Mesh(chang_geometry, chang_materials);
+
+            train_windowhr.position.x = 54;
+            train_windowhr.position.y = 8.5;
+            train_windowhr.position.z = 44;
+            const tlighthr = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlighthr.position.set(57, 8.5, 44);
+            
+
+
+
+            //머리부분
+            const headgeometry = new THREE.BoxGeometry(8, 8, 5);
+            const headmaterials = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/iron.jpg") });
+            const head1 = new THREE.Mesh(headgeometry, headmaterials);
+
+            head1.position.x = 50;
+            head1.position.y = 7;
+            head1.position.z = 55;
+            head1.castShadow = true;
+            
+
+
+            //머리 깓대기 부분
+            const geometry = new THREE.ConeGeometry(3.5, 3.5, 20);
+            const material = new THREE.MeshStandardMaterial ({ map: loader.load("./pic/iron.jpg") });
+            const cone = new THREE.Mesh(geometry, material);
+            cone.position.x = 50;
+            cone.position.y = 6.5;
+            cone.position.z = 59;
+            cone.rotation.x = -1.5 * Math.PI
+            cone.castShadow = true;
+
+            const tlighthh = new THREE.PointLight( 0xffffff, 1, 10 );
+            tlighthh.position.set(50, 5, 62);
+            
+
+            //기차앞에 라이트1
+            const trainspotLight = new THREE.SpotLight( 0xffffff );
+            trainspotLight.position.set(48, 6.5, 59 );
+            trainspotLight.castShadow = true;
+            trainspotLight.shadow.mapSize.width = 1024;
+            trainspotLight.shadow.mapSize.height = 1024;
+            trainspotLight.shadow.camera.near = 1;
+            trainspotLight.shadow.camera.far = 10;
+            trainspotLight.shadow.camera.fov = 30;
+            trainspotLight.angle=Math.PI/4.
+            trainspotLight.intensity = 1;
+            trainspotLight.distance = 40;
+            trainspotLight.target.position.set(48, 6.5, 70 )
+            trainspotLight.target.updateMatrixWorld();
+
+            //기차앞에 라이트2
+            const trainspotLight2 = new THREE.SpotLight( 0xffffff );
+            trainspotLight2.position.set(52, 6.5, 59 );
+            trainspotLight2.castShadow = true;
+            trainspotLight2.shadow.mapSize.width = 1024;
+            trainspotLight2.shadow.mapSize.height = 1024;
+            trainspotLight2.shadow.camera.near = 1;
+            trainspotLight2.shadow.camera.far = 10;
+            trainspotLight2.shadow.camera.fov = 30;
+            trainspotLight2.angle=Math.PI/4.
+            trainspotLight2.intensity = 1;
+            trainspotLight2.distance = 40;
+            trainspotLight2.target.position.set(52, 6.5, 70 )
+            trainspotLight2.target.updateMatrixWorld();
+
+
+
+            //바퀴3-1
+            const baqih_1 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqih_1.castShadow = true;
+            baqih_1.rotation.z = -0.5 * Math.PI
+            baqih_1.position.x = 47.5;
+            baqih_1.position.y = 2.7;
+            baqih_1.position.z = +39;
+
+
+            //바퀴3-2
+            const baqih_2 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqih_2.castShadow = true;
+            baqih_2.rotation.z = -0.5 * Math.PI
+            baqih_2.position.x = 52.5;
+            baqih_2.position.y = 2.7;
+            baqih_2.position.z = +39;
+
+
+            //바퀴3-3
+            const baqih_3 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqih_3.castShadow = true;
+            baqih_3.rotation.z = -0.5 * Math.PI
+            baqih_3.position.x = 47.5;
+            baqih_3.position.y = 2.7;
+            baqih_3.position.z = +49;
+
+
+            //바퀴3-4
+            const baqih_4 = new THREE.Mesh(baqigeometry, baqimaterial);
+            baqih_4.castShadow = true;
+            baqih_4.rotation.z = -0.5 * Math.PI
+            baqih_4.position.x = 52.5;
+            baqih_4.position.y = 2.7;
+            baqih_4.position.z = +49;
+
+
+
+            // 머리칸 그룹
+            const traingrouph = new THREE.Group();
+            traingrouph.add(uptrianh);
+            traingrouph.add(train_windowhl);
+            traingrouph.add(train_windowhr);
+            traingrouph.add(baqih_1);
+            traingrouph.add(baqih_2);
+            traingrouph.add(baqih_3);
+            traingrouph.add(baqih_4);
+            traingrouph.add(head1);
+            traingrouph.add(cone);
+            traingrouph.add(trainspotLight);
+            traingrouph.add(trainspotLight.target );
+            traingrouph.add(trainspotLight2);
+            traingrouph.add(trainspotLight2.target );
+            traingrouph.add(tlighthl);
+            traingrouph.add(tlighthr);
+            traingrouph.add(tlighthh);
+
+
+
+            const train = new THREE.Group();
+            
+
+            train.add(traingrouph);
+            train.add(traingroupm1);
+            train.add(traingroup4);
+            train.add(traingroup3);
+            train.add(traingroup2);
+            train.add(traingroup1);
+
+            train.castShadow = true;
+            scene.add(train);
+
+            //애니메이션 설정 ////////////////////////////////////////////////////////////////////////
+            // POSITION
+            const positionKF = new THREE.VectorKeyframeTrack( '.position', [ 0, 1, 2, 3 ,4], [ 0, 0, -250,    0, 0, -100,    0, 0, 0,    0, 0, 2     ,   0,0,300] );
+            const clip = new THREE.AnimationClip( 'Action', 4, [ positionKF] );
+
+            var tmixer = new THREE.AnimationMixer( train );
+            // create a ClipAction and set it to play
+            const clipAction = tmixer.clipAction( clip );
+            clipAction.play();
+            
+            // add the output of the renderer to the html element
+            document.getElementById("webgl-output").appendChild(renderer.domElement);
+            var clock = new THREE.Clock();
+            console.log(clock)
+            
+
+
+
+            //움직임 조작 넣기 ////////////////////////////////////////////////////
+            var mixer;
+            const velocity = new THREE.Vector3();
+            const direction = new THREE.Vector3();
+            let raycaster;
+
+            let moveForward = false;
+            let moveBackward = false;
+            let moveLeft = false;
+            let moveRight = false;
+            let canJump = false;
+            let canswapcamera = false;
+            const controls1p = new THREE.PointerLockControls( camera, document.body );
+			const blocker = document.getElementById( 'blocker' );
+			const instructions = document.getElementById( 'instructions' );
+
+			instructions.addEventListener( 'click', function () {
+					controls1p.lock();
+			} );
+
+			controls1p.addEventListener( 'lock', function () {
+
+                instructions.style.display = 'none';
+				blocker.style.display = 'none';
+                    
+            
+
+			} );
+
+			controls1p.addEventListener( 'unlock', function () {
+
+                    blocker.style.display = 'block';
+					instructions.style.display = '';
+
+			} );
+
+
+
+			// scene.add( controls1p.getObject() );
+
+			const onKeyDown = function ( event ) {
+
+				switch ( event.code ) {
+
+					case 'ArrowUp':
+					case 'KeyW':
+						moveForward = true;
+						break;
+
+					case 'ArrowLeft':
+					case 'KeyA':
+						moveLeft = true;
+						break;
+
+					case 'ArrowDown':
+					case 'KeyS':
+						moveBackward = true;
+						break;
+
+					case 'ArrowRight':
+					case 'KeyD':
+						moveRight = true;
+						break;
+
+					case 'Space':
+						if ( canJump === true ) velocity.y += 200;
+						canJump = false;
+						break;
+
+                    case 'Enter':
+                        presentcamera =0;
+                        break;
+                        // if(presentcamera==1){
+                        //     presentcamera=0;
+                            
+                        // }
+                        // else{
+                        //     presentcamera=1
+                        // }
+                    
+                    case 'ShiftRight':
+
+                        presentcamera =1;
+                        break;
+
+                    
+
+				}
+
+			};
+
+			const onKeyUp = function ( event ) {
+
+				switch ( event.code ) {
+
+					case 'ArrowUp':
+					case 'KeyW':
+						moveForward = false;
+						break;
+
+					case 'ArrowLeft':
+					case 'KeyA':
+						moveLeft = false;
+						break;
+
+					case 'ArrowDown':
+					case 'KeyS':
+						moveBackward = false;
+						break;
+
+					case 'ArrowRight':
+					case 'KeyD':
+						moveRight = false;
+						break;
+
+				}
+			};
+
+			document.addEventListener( 'keydown', onKeyDown );
+			document.addEventListener( 'keyup', onKeyUp );
+
+			raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+
+			document.body.appendChild(renderer.domElement);
+
+
+            // /////////////////////////////////////
+
+
+
+
+            renderScene();
+            function renderScene() {
+
+
+                const delta = 0.5*clock.getDelta();
+                    if ( tmixer ) {
+                        tmixer.update( delta );}
+
+                //카메라 이동제어
+                requestAnimationFrame(renderScene);
+                if(presentcamera==1){
+                    renderer.render(scene, camera2);
+                    camera2.position.x = controls.PosX;
+                    camera2.position.y = controls.PosY;
+                    camera2.position.z = controls.PosZ;
+                    
+                    
+                }
+                else{
+                    renderer.render(scene, camera);
+                    if ( controls1p.isLocked === true ) {
+                        raycaster.ray.origin.copy( controls1p.getObject().position );
+                        raycaster.ray.origin.y -= 10;
+                        
+                        const intersections = raycaster.intersectObjects( plane, false );
+                        const onObject = intersections.length > 0;
+                        
+                        velocity.x -= velocity.x * 10.0 * delta;
+                        velocity.z -= velocity.z * 10.0 * delta;
+                        velocity.y -= 9.8 * 100.0 * delta; 
+                        
+                        direction.z = Number( moveForward ) - Number( moveBackward );
+                        direction.x = Number( moveRight ) - Number( moveLeft );
+                        direction.normalize(); // this ensures consistent movements in all directions
+                        
+                        if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta;
+                        if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta;
+                        
+                        if ( onObject === true ) {
+                        velocity.y = Math.max( 0, velocity.y );
+                        canJump = true;
+                        }
+                        controls1p.moveRight( - velocity.x * delta );
+                        controls1p.moveForward( - velocity.z * delta );
+                        
+                        controls1p.getObject().position.y += ( velocity.y * delta ); // new behavior
+                        
+                        if ( controls1p.getObject().position.y < 10 ) {
+                            velocity.y = 0;
+                            controls1p.getObject().position.y = 10;
+                            canJump = true;
+                        }
+				    }
+                }
+                controlss2.update();
+
+                // if ( mixer ) {
+				// 	mixer.update( delta );
+                // }
+
+
+            }
+        }
+
+
+        window.onload = init;
+    </script>
+</body>
+
+</html>
